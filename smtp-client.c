@@ -33,6 +33,10 @@ struct MAIL {
   char body[100];
 };
 
+struct INBOX {
+  int count;
+  struct MAIL mails[100];
+};
 
 void login_or_create(int *option);
 void get_credintials(struct SMTP_AUTH_CRED *);
@@ -41,7 +45,7 @@ void get_user_info(struct USER *);
 void send_user_info(int sockfd, struct USER *);
 int  status(int sockfd);
 void show_main_menu(int *option);
-void compose_mail(int sockfd);
+void compose_mail(int sockfd, char *from);
 void show_inbox(int sockfd);
 
 int main(int argc, char *argv[])
@@ -104,6 +108,8 @@ int main(int argc, char *argv[])
         get_user_info(&user);
         send_user_info(sockfd, &user);
         is_logged_in = status(sockfd);
+        strcpy(auth_cred.email, user.email);
+        strcpy(auth_cred.password, user.password);
         break;
 
       default:
@@ -131,12 +137,14 @@ int main(int argc, char *argv[])
       switch (option)
       {
         case 1:
-          compose_mail(sockfd);
-          status(sockfd);
+          show_inbox(sockfd);
           break;
       
         case 2:
-          show_inbox(sockfd);
+          compose_mail(sockfd, auth_cred.email);
+          break;
+
+        case 3:
           break;
 
         default:
@@ -147,6 +155,7 @@ int main(int argc, char *argv[])
       if(option == 3) break;
     }  
 
+    if(option == 3) break;
   }
 
   close(sockfd);    
@@ -155,7 +164,7 @@ int main(int argc, char *argv[])
 
 void login_or_create(int *option)
 {
-  printf("_______________________START MENU_____________________\n");
+  printf("\n\n_______________________START MENU_____________________\n\n");
   printf("1. LOGIN \n");
   printf("2. CREATE ACCOUNT \n");
   printf("Choose an option => ");
@@ -195,9 +204,9 @@ int status(int sockfd)
   struct STATUS_MSG status;
   recv(sockfd, &status, sizeof(status), 0);
 
-  printf("%s", status.status_msg);
+  printf("%s\n", status.status_msg);
 
-  if(status.status_code == 500) {
+  if(status.status_code == 500 || status.status_code == 403) {
      return FALSE;
   }  
    
@@ -206,25 +215,30 @@ int status(int sockfd)
 
 void show_main_menu(int *option)
 {
-  printf("____________________MAIN MENU_________________\n");
-  printf("1. COMPOSE\n");
-  printf("2. INBOX\n");
+  printf("\n\n____________________MAIN MENU_________________\n\n");
+  printf("1. INBOX\n");
+  printf("2. COMPOSE\n");
   printf("3. LOGOUT\n");
   printf("CHOOSE OPTION => ");
   scanf("%d", option);
 }
 
-void compose_mail(int sockfd)
+void compose_mail(int sockfd, char *from)
 {
   struct MAIL mail;
+  strcpy(mail.from, from);
 
-  printf("____________________COMPOSE MAIL_________________\n");
-  printf("FROM => ");
-  scanf("%s", mail.from);
+  printf("\n\n____________________COMPOSE MAIL_________________\n\n");
+  printf("FROM : %s\n", from);
   printf("TO => ");
   scanf("%s", mail.to);
+
+  int c;
+  while ((c = getchar()) != '\n' && c != EOF);
+  
   printf("SUBJECT => ");
-  scanf("%s", mail.subject);
+  fgets(mail.subject, sizeof(mail.subject), stdin);
+
   printf("BODY => ");
   fgets(mail.body, sizeof(mail.body), stdin);
 
@@ -233,5 +247,24 @@ void compose_mail(int sockfd)
 
   // waiting for server to respond with a status
   status(sockfd);
+
+}
+
+
+void show_inbox(int sockfd)
+{
+  struct INBOX inbox;
+  int    i = 0;
+
+  recv(sockfd, &inbox, sizeof(struct INBOX), 0);
+
+  for(i = 0; i < inbox.count; i++) {
+    printf("\n___________________________________________________________\n\n");
+    printf("From : %s\n", inbox.mails[i].from);
+    printf("To : %s\n", inbox.mails[i].to);
+    printf("Subject : %s\n", inbox.mails[i].subject);
+    printf("%s\n", inbox.mails[i].body);
+    printf("\n___________________________________________________________\n");
+  }
 
 }
